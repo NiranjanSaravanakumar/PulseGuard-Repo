@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ComponentRegistry from "./components/ComponentRegistry";
-import useWebSocket from "./hooks/useWebSocket";
+import DynamicGrid           from "./components/DynamicGrid";
+import useIndustrialSocket   from "./hooks/useIndustrialSocket";
+import { fetchUIConfig }     from "./services/api";
 
-const BACKEND_HTTP = import.meta.env.VITE_API_URL  || "http://localhost:8000";
-const BACKEND_WS   = import.meta.env.VITE_WS_URL   || "ws://localhost:8000/ws";
-const MAX_POINTS   = 50;   // rolling history per sensor chart
-const MAX_ALERTS   = 100;  // max alerts in memory
+const MAX_POINTS = 50;   // rolling history per sensor chart
+const MAX_ALERTS = 100;  // max alerts kept in memory
 
 export default function App() {
   const [role,       setRole]       = useState("operator");
@@ -17,8 +16,7 @@ export default function App() {
   // ── Fetch UI-Schema whenever role changes ─────────────────────────────────
   useEffect(() => {
     setUiSchema(null);
-    fetch(`${BACKEND_HTTP}/config?role=${role}`)
-      .then((r) => r.json())
+    fetchUIConfig(role)
       .then(setUiSchema)
       .catch(console.error);
   }, [role]);
@@ -36,7 +34,9 @@ export default function App() {
         [sensor_id]: [
           ...(prev[sensor_id] || []).slice(-(MAX_POINTS - 1)),
           {
-            time:  new Date(timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            time:  new Date(timestamp).toLocaleTimeString([], {
+              hour: "2-digit", minute: "2-digit", second: "2-digit",
+            }),
             value: parseFloat(value),
           },
         ],
@@ -44,9 +44,8 @@ export default function App() {
     }
   }, []);
 
-  const { isConnected } = useWebSocket(`${BACKEND_WS}/${role}`, {
-    onMessage: handleMessage,
-  });
+  const { status } = useIndustrialSocket(role, { onMessage: handleMessage });
+  const isConnected = status === "connected";
 
   const dismissAlert = useCallback((alertId) => {
     setAlerts((prev) =>
@@ -95,13 +94,21 @@ export default function App() {
             className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
               isConnected
                 ? "bg-emerald-900/40 text-emerald-400 ring-1 ring-emerald-500/30"
-                : "bg-red-900/40 text-red-400 ring-1 ring-red-500/30"
+                : status === "connecting"
+                  ? "bg-yellow-900/40 text-yellow-400 ring-1 ring-yellow-500/30"
+                  : "bg-red-900/40 text-red-400 ring-1 ring-red-500/30"
             }`}
           >
             <span
-              className={`w-1.5 h-1.5 rounded-full ${isConnected ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`}
+              className={`w-1.5 h-1.5 rounded-full ${
+                isConnected
+                  ? "bg-emerald-400 animate-pulse"
+                  : status === "connecting"
+                    ? "bg-yellow-400 animate-pulse"
+                    : "bg-red-400"
+              }`}
             />
-            {isConnected ? "Live" : "Disconnected"}
+            {isConnected ? "Live" : status === "connecting" ? "Connecting…" : "Disconnected"}
           </span>
 
           {/* Role switcher */}
@@ -150,7 +157,7 @@ export default function App() {
         }`}
       >
         {uiSchema ? (
-          <ComponentRegistry
+          <DynamicGrid
             schema={uiSchema}
             alerts={alerts}
             sensorData={sensorData}

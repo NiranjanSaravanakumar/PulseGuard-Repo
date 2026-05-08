@@ -1,86 +1,104 @@
 """
-PulseGuard — Data Simulator
-• Sine-wave base values per sensor
-• Gaussian noise overlay
-• Critical Failure injection every 60 s (random spike to 110–250 %)
+PulseGuard — Multithreaded Sensor Simulator
+────────────────────────────────────────────
+• Each sensor runs in its own thread, POSTing to /api/v1/telemetry.
+• Normal behaviour: Sine wave + Gaussian noise.
+• Anomaly injection: Every 60 s a critical spike is fired (110–130% of range).
 """
-import asyncio
-import json
 import math
+import os
 import random
+import threading
 import time
 
-import websockets
+import requests
+from dotenv import load_dotenv
 
-WS_URL = "ws://localhost:8000/ws/engineer"
+load_dotenv()
 
-SENSORS = [
-    {"id": "temp-01",      "sector": "Zone-A", "base": 65.0,  "amp": 10.0,   "freq": 0.08},
-    {"id": "temp-02",      "sector": "Zone-B", "base": 72.0,  "amp":  8.0,   "freq": 0.06},
-    {"id": "pressure-01",  "sector": "Zone-A", "base":  4.5,  "amp":  0.5,   "freq": 0.05},
-    {"id": "vibration-01", "sector": "Zone-C", "base":  0.02, "amp":  0.005, "freq": 0.12},
-    {"id": "flow-01",      "sector": "Zone-B", "base": 120.0, "amp": 15.0,   "freq": 0.07},
+API_URL       = os.getenv("API_URL", "http://localhost:8000")
+TELEMETRY_URL = f"{API_URL}/api/v1/telemetry"
+INTERVAL      = float(os.getenv("SIMULATOR_INTERVAL", "2"))
+
+SENSORS: list[dict] = [
+    {"id": "temp_sensor_01",      "unit": "°C",    "sector": "Furnace",    "base": 75.0,  "amplitude": 15.0, "freq": 0.05},
+    {"id": "pressure_sensor_01",  "unit": "bar",   "sector": "Hydraulics", "base": 100.0, "amplitude": 20.0, "freq": 0.03},
+    {"id": "vibration_sensor_01", "unit": "mm/s",  "sector": "Pumps",      "base": 2.5,   "amplitude": 1.5,  "freq": 0.07},
+    {"id": "flow_sensor_01",      "unit": "L/min", "sector": "Cooling",    "base": 30.0,  "amplitude": 8.0,  "freq": 0.04},
 ]
 
-TICK_INTERVAL   = 0.5   # seconds between batches (2 Hz)
-CRITICAL_PERIOD = 60.0  # seconds between critical injection windows
+_anomaly_flag = threading.Event()
+_stop_flag    = threading.Event()
 
 
-async def run(ws_url: str) -> None:
-    print(f"[PulseGuard Simulator] Connecting to {ws_url} …")
+def _anomaly_scheduler() -> None:
+    """Toggle anomaly flag for 2 s every 60 s."""
+    while not _stop_flag.is_set():
+        time.sleep(60)
+        if _stop_flag.is_set():
+            break
+        print("\n[!] ANOMALY INJECTION WINDOW OPEN")
+        _anomaly_flag.set()
+        time.sleep(2)
+        _anomaly_flag.clear()
+        print("[!] anomaly window closed\n")
 
-    async with websockets.connect(ws_url, ping_interval=20) as ws:
-        print("[PulseGuard Simulator] ✓ Connected — streaming data")
 
-        tick                  = 0
-        last_critical_window  = time.time()
+def _post(payload: dict) -> None:
+    try:
+        resp   = requests.post(TELEMETRY_URL, json=payload, timeout=5)
+        status = "ALERT  <--" if resp.json().get("alert_generated") else "ok"
+        print(f"  [{payload['sensor_id']}] {payload['value']:.3f} {payload['unit']}  -> {status}")
+    except requests.RequestException as exc:
+        print(f"  [ERROR] {payload['sensor_id']}: {exc}")
 
+
+def _sensor_thread(sensor: dict) -> None:
+    t = random.uniform(0, 2 * math.pi)  # random phase offset
+    while not _stop_flag.is_set():
+        sine_val = sensor["base"] + sensor["amplitude"] * math.sin(
+            2 * math.pi * sensor["freq"] * t
+        )
+        noise = random.gauss(0, sensor["amplitude"] * 0.05)
+
+        if _anomaly_flag.is_set():
+            # Spike to 110–130% of (base + amplitude)
+            peak  = sensor["base"] + sensor["amplitude"]
+            value = peak * random.uniform(1.10, 1.30)
+        else:
+            value = sine_val + noise
+
+        _post({
+            "sensor_id": sensor["id"],
+            "value":     round(value, 3),
+            "unit":      sensor["unit"],
+            "sector":    sensor["sector"],
+        })
+
+        t += INTERVAL
+        time.sleep(INTERVAL)
+
+
+def main() -> None:
+    print(f"PulseGuard Simulator  |  target: {TELEMETRY_URL}")
+    print(f"Sensors: {len(SENSORS)}  |  interval: {INTERVAL}s  |  anomaly every 60s\n")
+
+    threads = [
+        threading.Thread(target=_sensor_thread, args=(s,), daemon=True)
+        for s in SENSORS
+    ]
+    threads.append(threading.Thread(target=_anomaly_scheduler, daemon=True))
+
+    for t in threads:
+        t.start()
+
+    try:
         while True:
-            now            = time.time()
-            trigger_spike  = (now - last_critical_window) >= CRITICAL_PERIOD
-            spiked_this_cycle = False
-
-            for sensor in SENSORS:
-                # ── Sine wave + Gaussian noise ────────────────────────────
-                value  = sensor["base"] + sensor["amp"] * math.sin(tick * sensor["freq"])
-                value += random.gauss(0, sensor["amp"] * 0.04)
-
-                # ── Critical Failure injection (once per window) ───────────
-                if trigger_spike and not spiked_this_cycle and random.random() < 0.25:
-                    multiplier = random.uniform(1.6, 2.5)
-                    value     *= multiplier
-                    spiked_this_cycle = True
-                    print(
-                        f"[!] CRITICAL SPIKE  sensor={sensor['id']}  "
-                        f"value={value:.3f}  multiplier=×{multiplier:.2f}"
-                    )
-
-                payload = {
-                    "type": "sensor_data",
-                    "data": {
-                        "sensor_id": sensor["id"],
-                        "sector":    sensor["sector"],
-                        "value":     round(value, 4),
-                        "timestamp": now,
-                    },
-                }
-                await ws.send(json.dumps(payload))
-
-            if trigger_spike and spiked_this_cycle:
-                last_critical_window = now
-
-            tick += 1
-            await asyncio.sleep(TICK_INTERVAL)
-
-
-async def main() -> None:
-    while True:
-        try:
-            await run(WS_URL)
-        except (OSError, websockets.exceptions.WebSocketException) as exc:
-            print(f"[PulseGuard Simulator] Connection lost ({exc}). Retrying in 3 s …")
-            await asyncio.sleep(3)
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nSimulator stopped.")
+        _stop_flag.set()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
