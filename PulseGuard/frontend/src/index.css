@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 antialiased;
+  }
+  * {
+    @apply box-border;
+  }
+}
+
+/* Slim custom scrollbar for the alert feed */
+.pulseguard-scroll::-webkit-scrollbar        { width: 4px; }
+.pulseguard-scroll::-webkit-scrollbar-track  { background: transparent; }
+.pulseguard-scroll::-webkit-scrollbar-thumb  { @apply bg-slate-700 rounded-full; }
+.pulseguard-scroll::-webkit-scrollbar-thumb:hover { @apply bg-slate-500; }
