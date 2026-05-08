@@ -1,16 +1,11 @@
 /**
  * DynamicGrid — metadata-driven layout engine.
- *
- * Reads the UI schema fetched from /api/v1/ui-config and maps each component
- * descriptor to the appropriate React component via ComponentMapper.
- *
- * Schema example:
- *   { type: "radial_gauge", source: "temp_sensor_01", label: "Temperature", size: "small" }
  */
 import { Suspense } from "react";
 import AlertFeed       from "./AlertFeed";
 import SensorChart     from "./SensorChart";
 import StatusCard      from "./StatusCard";
+import DigitalTwinGrid from "./DigitalTwinGrid";
 
 // ── Inline Radial Gauge (SVG-based, no extra deps) ────────────────────────────
 function RadialGauge({ label = "", value = 0, max = 150, unit = "" }) {
@@ -50,12 +45,15 @@ function RadialGauge({ label = "", value = 0, max = 150, unit = "" }) {
 }
 
 // ── Component mapper ──────────────────────────────────────────────────────────
-function ComponentMapper({ comp, sensorData, alerts, onDismiss }) {
+function ComponentMapper({ comp, sensorData, sensorPings, alerts, onDismiss }) {
   const source   = comp.source || comp.sensor;
   const readings = sensorData[source] || [];
   const latest   = readings.at(-1)?.value ?? null;
 
   switch (comp.type) {
+    case "digital_twin":
+      return <DigitalTwinGrid pings={sensorPings} />;
+
     case "alert_feed":
       return <AlertFeed alerts={alerts} onDismiss={onDismiss} label={comp.label} />;
 
@@ -89,7 +87,7 @@ function ComponentMapper({ comp, sensorData, alerts, onDismiss }) {
     default:
       return (
         <div className="flex items-center justify-center h-full text-slate-500 text-sm italic">
-          Unknown component: <code className="ml-1 text-slate-400">{comp.type}</code>
+          Unknown: <code className="ml-1 text-slate-400">{comp.type}</code>
         </div>
       );
   }
@@ -103,7 +101,7 @@ const SIZE_CLASS = {
 };
 
 // ── DynamicGrid ───────────────────────────────────────────────────────────────
-export default function DynamicGrid({ schema, sensorData, alerts, onDismiss }) {
+export default function DynamicGrid({ schema, sensorData, sensorPings = {}, alerts, onDismiss }) {
   // Loading state
   if (!schema) {
     return (
@@ -144,6 +142,7 @@ export default function DynamicGrid({ schema, sensorData, alerts, onDismiss }) {
               <ComponentMapper
                 comp={comp}
                 sensorData={sensorData}
+                sensorPings={sensorPings}
                 alerts={alerts}
                 onDismiss={onDismiss}
               />

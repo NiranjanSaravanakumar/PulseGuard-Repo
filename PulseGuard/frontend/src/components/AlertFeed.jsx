@@ -23,6 +23,20 @@ const SEV = {
     dot:    "bg-blue-400",
     bar:    "#3b82f6",
   },
+  PREDICTION: {
+    ring:   "border-violet-500/50",
+    bg:     "bg-violet-950/30",
+    badge:  "bg-violet-600 text-white",
+    dot:    "bg-violet-400 animate-pulse",
+    bar:    "#8b5cf6",
+  },
+  ZONE_ALARM: {
+    ring:   "border-rose-500/70",
+    bg:     "bg-rose-950/50",
+    badge:  "bg-rose-700 text-white",
+    dot:    "bg-rose-400 animate-ping",
+    bar:    "#f43f5e",
+  },
 };
 
 // ── Single alert card (Team-style) ────────────────────────────────────────────
@@ -65,12 +79,17 @@ function AlertCard({ alert, onDismiss }) {
 
           {/* Message */}
           <p className="text-sm text-slate-200 font-medium leading-snug">
-            {alert.summary || alert.message}
+            {alert.zone_summary || alert.summary || alert.message}
           </p>
 
-          {alert.is_aggregated && (
-            <p className="text-xs text-slate-500 mt-1">
-              {alert.aggregated_count} events grouped by AI engine
+          {alert.is_prediction && alert.eta_seconds != null && (
+            <p className="text-xs text-violet-400 mt-1 font-mono">
+              ⏱ Breach in ~{alert.eta_seconds.toFixed(0)}s @ +{alert.velocity?.toFixed(3)}/s
+            </p>
+          )}
+          {alert.is_zone_alarm && alert.affected_sensors?.length > 0 && (
+            <p className="text-xs text-rose-300 mt-1">
+              Sensors: {alert.affected_sensors.join(", ")}
             </p>
           )}
         </div>
@@ -99,16 +118,16 @@ function AlertCard({ alert, onDismiss }) {
 }
 
 // ── Intelligence Feed panel ───────────────────────────────────────────────────
-export default function AlertFeed({ config, alerts, onDismiss }) {
+export default function AlertFeed({ label, alerts, onDismiss }) {
   const active = (alerts ?? []).filter((a) => !a.dismissed).slice(0, 25);
 
   return (
-    <div className="h-full bg-slate-900 rounded-2xl border border-slate-800 flex flex-col overflow-hidden">
+    <div className="h-full bg-slate-900/50 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-lg shadow-black/30 flex flex-col overflow-hidden">
       {/* Panel header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/60 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400" />
-          <h3 className="text-sm font-semibold text-white">{config.title}</h3>
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <h3 className="text-sm font-semibold text-white">{label || "Intelligence Feed"}</h3>
         </div>
         <span className="text-xs text-slate-500 tabular-nums">{active.length} active</span>
       </div>

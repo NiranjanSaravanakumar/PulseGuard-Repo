@@ -19,16 +19,16 @@ function CustomTooltip({ active, payload }) {
   );
 }
 
-export default function SensorChart({ config, data }) {
+export default function SensorChart({ sensorId, label, data = [], chartType = "area" }) {
   const latest  = data[data.length - 1]?.value;
   const prev    = data[data.length - 2]?.value;
   const isSpike = data.length >= 2 && prev != null && Math.abs(latest - prev) > Math.abs(prev) * 0.25;
   const color   = isSpike ? "#ef4444" : "#06b6d4";
-  const gradId  = `grad-${config.sensor?.replace(/[^a-z0-9]/gi, "-")}`;
+  const gradId  = `grad-${(sensorId || "x").replace(/[^a-z0-9]/gi, "-")}`;
 
   return (
     <motion.div
-      className="h-full bg-slate-900 rounded-2xl border border-slate-800 flex flex-col p-4 overflow-hidden"
+      className="h-full bg-slate-900/50 backdrop-blur-md rounded-2xl border border-slate-700/50 shadow-lg shadow-black/30 flex flex-col p-4 overflow-hidden"
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
@@ -36,8 +36,8 @@ export default function SensorChart({ config, data }) {
       {/* Header row */}
       <div className="flex items-start justify-between mb-3 shrink-0">
         <div>
-          <h3 className="text-sm font-semibold text-white leading-tight">{config.title}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">{config.sensor}</p>
+          <h3 className="text-sm font-semibold text-white leading-tight">{label}</h3>
+          <p className="text-xs text-slate-500 mt-0.5 font-mono">{sensorId}</p>
         </div>
         <div className="text-right">
           <motion.p

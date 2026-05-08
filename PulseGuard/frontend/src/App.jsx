@@ -1,17 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import DynamicGrid           from "./components/DynamicGrid";
+import CommandPalette        from "./components/CommandPalette";
 import useIndustrialSocket   from "./hooks/useIndustrialSocket";
+import useVoiceAlerts        from "./hooks/useVoiceAlerts";
 import { fetchUIConfig }     from "./services/api";
 
-const MAX_POINTS = 50;   // rolling history per sensor chart
-const MAX_ALERTS = 100;  // max alerts kept in memory
+const MAX_POINTS = 60;   // rolling chart history per sensor
+const MAX_ALERTS = 150;  // max alerts kept in memory
+
+const ROLES = ["operator", "engineer", "admin"];
 
 export default function App() {
   const [role,       setRole]       = useState("operator");
   const [uiSchema,   setUiSchema]   = useState(null);
   const [alerts,     setAlerts]     = useState([]);
   const [sensorData, setSensorData] = useState({});
+  const [sensorPings, setSensorPings] = useState({});  // for Digital Twin
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   // ── Fetch UI-Schema whenever role changes ─────────────────────────────────
   useEffect(() => {
@@ -20,6 +26,18 @@ export default function App() {
       .then(setUiSchema)
       .catch(console.error);
   }, [role]);
+
+  // ── Ctrl+K — Command Palette ──────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // ── WebSocket message handler ─────────────────────────────────────────────
   const handleMessage = useCallback((msg) => {
@@ -41,11 +59,17 @@ export default function App() {
           },
         ],
       }));
+    } else if (msg.type === "sensor_ping") {
+      const { sensor_id, status, value, zone } = msg.data;
+      setSensorPings((prev) => ({ ...prev, [sensor_id]: { status, value, zone } }));
     }
   }, []);
 
   const { status } = useIndustrialSocket(role, { onMessage: handleMessage });
   const isConnected = status === "connected";
+
+  // ── Voice alerts ──────────────────────────────────────────────────────────
+  useVoiceAlerts(alerts);
 
   const dismissAlert = useCallback((alertId) => {
     setAlerts((prev) =>
@@ -59,6 +83,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/30">
+      {/* ── Command Palette ───────────────────────────────────────────────── */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        currentRole={role}
+        onRoleChange={(r) => { setRole(r); setSensorData({}); }}
+      />
+
       {/* ── Critical pulsing border overlay ──────────────────────────────── */}
       <AnimatePresence>
         {hasCritical && (
@@ -112,11 +144,11 @@ export default function App() {
           </span>
 
           {/* Role switcher */}
-          <div className="flex bg-slate-800 rounded-xl p-1 gap-1">
-            {["operator", "engineer"].map((r) => (
+          <div className="flex bg-slate-800/60 backdrop-blur-sm rounded-xl p-1 gap-1">
+            {ROLES.map((r) => (
               <button
                 key={r}
-                onClick={() => setRole(r)}
+                onClick={() => { setRole(r); setSensorData({}); }}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
                   role === r
                     ? "bg-cyan-500 text-white shadow shadow-cyan-500/30"
@@ -127,6 +159,15 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          {/* Ctrl+K hint */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700"
+          >
+            <kbd className="font-mono text-[10px]">Ctrl+K</kbd>
+            <span>Command</span>
+          </button>
 
           {/* Active alert pill */}
           <AnimatePresence>
@@ -161,6 +202,7 @@ export default function App() {
             schema={uiSchema}
             alerts={alerts}
             sensorData={sensorData}
+            sensorPings={sensorPings}
             onDismiss={dismissAlert}
           />
         ) : (
