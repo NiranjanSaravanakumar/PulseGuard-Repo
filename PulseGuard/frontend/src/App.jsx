@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import DynamicGrid           from "./components/DynamicGrid";
 import CommandPalette        from "./components/CommandPalette";
+import ZoneSummaryBar        from "./components/ZoneSummaryBar";
 import useIndustrialSocket   from "./hooks/useIndustrialSocket";
 import useVoiceAlerts        from "./hooks/useVoiceAlerts";
-import { fetchUIConfig }     from "./services/api";
+import { fetchUIConfig, api } from "./services/api";
 
 const MAX_POINTS = 60;   // rolling chart history per sensor
 const MAX_ALERTS = 150;  // max alerts kept in memory
@@ -72,9 +73,12 @@ export default function App() {
   useVoiceAlerts(alerts);
 
   const dismissAlert = useCallback((alertId) => {
+    // Optimistic UI update
     setAlerts((prev) =>
       prev.map((a) => (a.alert_id === alertId ? { ...a, dismissed: true } : a))
     );
+    // Persist acknowledgement to backend
+    api.patch(`/api/v1/alerts/${alertId}/acknowledge`).catch(() => {/* non-critical */});
   }, []);
 
   // ── Contextual "critical" state ───────────────────────────────────────────
@@ -114,10 +118,13 @@ export default function App() {
           <div>
             <p className="text-base font-bold text-white leading-none">PulseGuard</p>
             <p className="text-[10px] text-slate-400 leading-none mt-0.5 tracking-wide uppercase">
-              Industrial Intelligence Platform
+              Digital Twin Command Center
             </p>
           </div>
         </div>
+
+        {/* Zone health pills */}
+        <ZoneSummaryBar sensorPings={sensorPings} />
 
         {/* Right controls */}
         <div className="flex items-center gap-3">

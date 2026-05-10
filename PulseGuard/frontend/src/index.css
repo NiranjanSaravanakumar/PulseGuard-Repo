@@ -2,16 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── v4 Design Tokens ────────────────────────────────────────────────────── */
+:root {
+  --c-cyan:    34 211 238;
+  --c-red:     239  68  68;
+  --c-amber:   251 191  36;
+  --c-violet:  139  92 246;
+  --c-emerald:  52 211 153;
+  --c-rose:    244  63  94;
+}
+
 @layer base {
+  html { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+
   body {
-    @apply bg-slate-950 antialiased;
+    @apply bg-slate-950 text-slate-100 antialiased;
     background-image:
-      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(6,182,212,0.08) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(99,102,241,0.06) 0%, transparent 60%);
+      /* top-centre cyan aurora */
+      radial-gradient(ellipse 90% 55% at 50% -5%,  rgba(6,182,212,0.10)  0%, transparent 62%),
+      /* bottom-right indigo bloom */
+      radial-gradient(ellipse 60% 45% at 88% 105%, rgba(99,102,241,0.07)  0%, transparent 60%),
+      /* subtle centre warm glow */
+      radial-gradient(ellipse 40% 30% at 20% 80%,  rgba(139,92,246,0.04)  0%, transparent 55%);
     background-attachment: fixed;
   }
-  * {
-    @apply box-border;
+
+  * { @apply box-border; }
+
+  /* Smooth focus rings */
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-cyan-500/70 rounded;
   }
 }
 
@@ -24,38 +44,84 @@ body::before {
     0deg,
     transparent,
     transparent 2px,
-    rgba(0,0,0,0.04) 2px,
-    rgba(0,0,0,0.04) 4px
+    rgba(0, 0, 0, 0.035) 2px,
+    rgba(0, 0, 0, 0.035) 4px
   );
   pointer-events: none;
-  z-index: 999;
+  z-index: 998;
 }
 
-/* ── Glassmorphism utility ───────────────────────────────────────────────── */
+/* Vignette on body edges */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 100% 100% at 50% 50%, transparent 60%, rgba(0,0,0,0.45) 100%);
+  pointer-events: none;
+  z-index: 997;
+}
+
+/* ── Glassmorphism utilities ─────────────────────────────────────────────── */
 @layer components {
   .glass {
-    @apply bg-slate-900/50 backdrop-blur-md border border-slate-700/50 shadow-lg shadow-black/30;
+    @apply bg-slate-900/50 backdrop-blur-md border border-slate-700/40
+           shadow-xl shadow-black/30;
+  }
+  .glass-sm {
+    @apply bg-slate-900/60 backdrop-blur-sm border border-slate-700/30
+           shadow-md shadow-black/20;
   }
   .glass-hover {
-    @apply hover:bg-slate-800/60 transition-colors duration-200;
+    @apply transition-colors duration-200 hover:bg-slate-800/60 hover:border-slate-600/50;
   }
-  .neon-cyan {
-    text-shadow: 0 0 8px rgba(34,211,238,0.7), 0 0 20px rgba(34,211,238,0.3);
+  .glass-panel {
+    @apply glass rounded-2xl overflow-hidden;
   }
-  .neon-red {
-    text-shadow: 0 0 8px rgba(239,68,68,0.8), 0 0 20px rgba(239,68,68,0.4);
-  }
-  .neon-amber {
-    text-shadow: 0 0 8px rgba(251,191,36,0.7), 0 0 20px rgba(251,191,36,0.3);
-  }
-  .neon-violet {
-    text-shadow: 0 0 8px rgba(139,92,246,0.7), 0 0 20px rgba(139,92,246,0.3);
+
+  /* ── Neon text glows ─────────────────────────────────────────────────── */
+  .neon-cyan   { text-shadow: 0 0 10px rgba(var(--c-cyan),0.8),   0 0 24px rgba(var(--c-cyan),0.35); }
+  .neon-red    { text-shadow: 0 0 10px rgba(var(--c-red),0.9),    0 0 24px rgba(var(--c-red),0.45); }
+  .neon-amber  { text-shadow: 0 0 10px rgba(var(--c-amber),0.8),  0 0 24px rgba(var(--c-amber),0.35); }
+  .neon-violet { text-shadow: 0 0 10px rgba(var(--c-violet),0.8), 0 0 24px rgba(var(--c-violet),0.35); }
+  .neon-emerald{ text-shadow: 0 0 10px rgba(var(--c-emerald),0.7),0 0 24px rgba(var(--c-emerald),0.30); }
+  .neon-rose   { text-shadow: 0 0 10px rgba(var(--c-rose),0.9),   0 0 24px rgba(var(--c-rose),0.45); }
+
+  /* ── Box-shadow glows (for sensor nodes, badges) ─────────────────────── */
+  .glow-cyan   { box-shadow: 0 0 12px 2px rgba(var(--c-cyan),0.35); }
+  .glow-red    { box-shadow: 0 0 14px 3px rgba(var(--c-red),0.45); }
+  .glow-amber  { box-shadow: 0 0 12px 2px rgba(var(--c-amber),0.35); }
+  .glow-emerald{ box-shadow: 0 0 10px 2px rgba(var(--c-emerald),0.30); }
+
+  /* ── Keyboard shortcut pill ──────────────────────────────────────────── */
+  .kbd {
+    @apply inline-flex items-center justify-center px-1.5 py-0.5
+           rounded text-[10px] font-mono font-semibold tracking-wider
+           bg-slate-700/80 text-slate-300 border border-slate-600/60
+           shadow-sm shadow-black/30;
   }
 }
 
-/* ── Slim custom scrollbar ───────────────────────────────────────────────── */
-.pulseguard-scroll::-webkit-scrollbar        { width: 3px; }
-.pulseguard-scroll::-webkit-scrollbar-track  { background: transparent; }
-.pulseguard-scroll::-webkit-scrollbar-thumb  { @apply bg-slate-700 rounded-full; }
-.pulseguard-scroll::-webkit-scrollbar-thumb:hover { @apply bg-cyan-700; }
+/* ── Slim scrollbar (webkit) ─────────────────────────────────────────────── */
+.pulseguard-scroll::-webkit-scrollbar         { width: 3px; }
+.pulseguard-scroll::-webkit-scrollbar-track   { background: transparent; }
+.pulseguard-scroll::-webkit-scrollbar-thumb   { background: #334155; border-radius: 99px; }
+.pulseguard-scroll::-webkit-scrollbar-thumb:hover { background: #22d3ee55; }
+
+/* Global thin scrollbar */
+*::-webkit-scrollbar         { width: 4px; height: 4px; }
+*::-webkit-scrollbar-track   { background: transparent; }
+*::-webkit-scrollbar-thumb   { background: #1e293b; border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: #0e7490; }
+
+/* ── Mono data tables ────────────────────────────────────────────────────── */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ── Animated gradient border for critical state ─────────────────────────── */
+@keyframes border-pulse {
+  0%, 100% { border-color: rgba(239,68,68,0.8); }
+  50%       { border-color: rgba(239,68,68,0.2); }
+}
+.animate-border-pulse {
+  animation: border-pulse 1.2s ease-in-out infinite;
+}
 

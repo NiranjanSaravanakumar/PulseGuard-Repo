@@ -21,6 +21,12 @@ export const fetchUIConfig = (role = "operator") =>
 export const fetchAlerts = (limit = 50) =>
   api.get(`/api/v1/alerts?limit=${limit}`).then((r) => r.data);
 
+export const acknowledgeAlert = (alertId) =>
+  api.patch(`/api/v1/alerts/${alertId}/acknowledge`).then((r) => r.data);
+
+export const fetchZonesHealth = () =>
+  api.get("/api/v1/zones/health").then((r) => r.data);
+
 // ── WebSocket factory ─────────────────────────────────────────────────────────
 /**
  * Creates a WebSocket connected to /ws/{role}.
