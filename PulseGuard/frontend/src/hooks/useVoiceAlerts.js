@@ -11,8 +11,10 @@ const VOICE_PITCH    = 0.9;
 const VOICE_VOLUME   = 0.85;
 
 export default function useVoiceAlerts(alerts) {
+  // Voice alerts disabled
   const lastAnnouncedId = useRef(new Set());
-  const synth           = typeof window !== "undefined" ? window.speechSynthesis : null;
+  // const synth           = typeof window !== "undefined" ? window.speechSynthesis : null;
+  const synth           = null;
 
   useEffect(() => {
     if (!synth) return;
